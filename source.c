@@ -56,6 +56,7 @@ typedef struct{
 
 typedef struct{
 	VEC3 pos;
+	f32 rot;
 }PLAYER;
 
 VEC3 playerPosBuf[MAXPLAYERS];
@@ -212,6 +213,8 @@ void main(){
 	WSAStartup(MAKEWORD(2, 2),&data);
 	tcpSock = socket(AF_INET,SOCK_STREAM,0);
 
+	setsockopt(tcpSock,IPPROTO_TCP,TCP_NODELAY,1,sizeof(DWORD));
+
 	tcpAddress.sin_family = AF_INET;
 	tcpAddress.sin_port = htons(7778);
 	tcpAddress.sin_addr.S_un.S_addr = INADDR_ANY;
@@ -229,6 +232,9 @@ void main(){
 			}
 		}
 		client[id] = temp;
+		
+		setsockopt(client[id],IPPROTO_TCP,TCP_NODELAY,1,sizeof(DWORD));
+
 		clientC++;
 		CreateThread(0,0,mapSend,&id,0,0);
 	}
