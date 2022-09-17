@@ -59,6 +59,16 @@ typedef struct{
 	f32 rot;
 }PLAYER;
 
+typedef struct{
+	VEC3 pos1;
+	VEC3 pos2;
+}PLAYERQUEUEDATA;
+
+typedef struct{
+	VEC3 pos1;
+	VEC3 pos2;
+}RAYENTITY;
+
 VEC3 playerPosBuf[MAXPLAYERS];
 VEC3 playerVel[MAXPLAYERS];
 
@@ -89,7 +99,9 @@ PLAYER playerCL[MAXPLAYERS][MAXPLAYERS];
 u8 playersettings[MAXPLAYERS];
 
 u8 playerQueueC[MAXPLAYERS];
-u8 playerQueue[256][MAXPLAYERS];
+u8 playerQueue[16][MAXPLAYERS];
+
+PLAYERQUEUEDATA playerQueueData[16][MAXPLAYERS];
 
 i32 sockret[MAXPLAYERS];
 
@@ -115,10 +127,10 @@ void serverSend(u8 *clientID){
 		while(playerQueueC[id]){
 			playerQueueC[id]--;
 			packetID = playerQueue[playerQueueC[id]][id];
+			send(client[id],&packetID,1,0);
 			switch(packetID){
-			case 1:
-			case 2:
-				send(client[id],&packetID,1,0);
+			case 3:
+				send(client[id],&playerQueueData[playerQueueC[id]][id],sizeof(PLAYERQUEUEDATA),0);
 				break;
 			}
 		}
@@ -129,24 +141,52 @@ void serverSend(u8 *clientID){
 	}
 }
 
+void clientDisconnect(u8 id){
+	closesocket(client[id]);
+	client[id] = 0;
+	clientC--;
+	for(u32 i = 0;i < MAXPLAYERS;i++){
+		if(client[i]){
+			playerQueue[playerQueueC[i]][i] = 2;
+			playerQueueC[i]++;
+		}
+	}
+	printf("clientDisconnect\n");
+	return;
+}
+
 void serverRecv(u8 id){
+	u8 packetID = 0;
 	for(;;){
 		serverRecvTimer(id);
-		sockret[id] = recv(client[id],&player[id],sizeof(PLAYER),0);
+		sockret[id] = recv(client[id],&packetID,sizeof(PLAYER),0);
 		if(sockret[id] == -1 || sockret[id] == 0){
-			if(WSAGetLastError() == WSAECONNRESET){
-				closesocket(client[id]);
-				client[id] = 0;
-				clientC--;
-				for(u32 i = 0;i < MAXPLAYERS;i++){
-					if(client[i]){
-						playerQueue[playerQueueC[i]][i] = 2;
-						playerQueueC[i]++;
-					}
-				}
-				printf("clientDisconnect\n");
+			clientDisconnect(id);
+			return;
+		}
+		switch(packetID){
+		case 1:{
+			RAYENTITY rayEntity;
+			sockret[id] = recv(client[id],&rayEntity,sizeof(PLAYER),0);
+			if(sockret[id] == -1 || sockret[id] == 0){
+				clientDisconnect(id);
 				return;
 			}
+			for(u32 i = 0;i < MAXPLAYERS;i++){
+				if(client[i] && i != id){
+					playerQueue[playerQueueC[i]][i] = 3;
+					playerQueueC[i]++;
+					playerQueueData[playerQueueC[i]][i].pos1 = rayEntity.pos1;
+					playerQueueData[playerQueueC[i]][i].pos2 = rayEntity.pos2;
+				}
+			}
+			break;
+		}
+		}
+		sockret[id] = recv(client[id],&player[id],sizeof(PLAYER),0);
+		if(sockret[id] == -1 || sockret[id] == 0){
+			clientDisconnect(id);
+			return;
 		}
 		playerVel[id] = VEC3subVEC3R(player[id].pos,playerPosBuf[id]);
 		playerPosBuf[id] = player[id].pos;
