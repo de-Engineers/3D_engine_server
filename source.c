@@ -86,7 +86,7 @@ EXRGB *lmap;
 
 u8 clientC;
 SOCKET client[8];
-SOCKET tcpSock;	
+SOCKET tcpSock;
 SOCKADDR_IN tcpAddress;
 
 PROPERTIES *properties;
@@ -159,7 +159,7 @@ void serverRecv(u8 id){
 	u8 packetID = 0;
 	for(;;){
 		serverRecvTimer(id);
-		sockret[id] = recv(client[id],&packetID,sizeof(PLAYER),0);
+		sockret[id] = recv(client[id],&packetID,1,0);
 		if(sockret[id] == -1 || sockret[id] == 0){
 			clientDisconnect(id);
 			return;
@@ -167,7 +167,7 @@ void serverRecv(u8 id){
 		switch(packetID){
 		case 1:{
 			RAYENTITY rayEntity;
-			sockret[id] = recv(client[id],&rayEntity,sizeof(PLAYER),0);
+			sockret[id] = recv(client[id],&rayEntity,sizeof(RAYENTITY),0);
 			if(sockret[id] == -1 || sockret[id] == 0){
 				clientDisconnect(id);
 				return;
@@ -175,9 +175,9 @@ void serverRecv(u8 id){
 			for(u32 i = 0;i < MAXPLAYERS;i++){
 				if(client[i] && i != id){
 					playerQueue[playerQueueC[i]][i] = 3;
-					playerQueueC[i]++;
 					playerQueueData[playerQueueC[i]][i].pos1 = rayEntity.pos1;
 					playerQueueData[playerQueueC[i]][i].pos2 = rayEntity.pos2;
+					playerQueueC[i]++;
 				}
 			}
 			break;
@@ -250,10 +250,8 @@ void main(){
 	lmap = HeapAlloc(GetProcessHeap(),8,lmapC*properties->lmapSz*properties->lmapSz*sizeof(EXRGB));
 	ReadFile(h,lmap,lmapC*properties->lmapSz*properties->lmapSz*sizeof(EXRGB),0,0);
 	CloseHandle(h);
-	WSAStartup(MAKEWORD(2, 2),&data);
+	WSAStartup(MAKEWORD(2,2),&data);
 	tcpSock = socket(AF_INET,SOCK_STREAM,0);
-
-	setsockopt(tcpSock,IPPROTO_TCP,TCP_NODELAY,1,sizeof(DWORD));
 
 	tcpAddress.sin_family = AF_INET;
 	tcpAddress.sin_port = htons(7778);
@@ -266,13 +264,13 @@ void main(){
 		SOCKET temp = accept(tcpSock,0,0);
 		u8 id = searchServerSlot();
 		for(u32 i = 0;i < MAXPLAYERS;i++){
-			if(client[i]){	
+			if(client[i]){
 				playerQueue[playerQueueC[i]][i] = 1;
 				playerQueueC[i]++;
 			}
 		}
 		client[id] = temp;
-		
+
 		setsockopt(client[id],IPPROTO_TCP,TCP_NODELAY,1,sizeof(DWORD));
 
 		clientC++;
