@@ -255,7 +255,7 @@ void main(){
 
 	tcpAddress.sin_family = AF_INET;
 	tcpAddress.sin_port = htons(7778);
-	tcpAddress.sin_addr.S_un.S_addr = INADDR_ANY;
+	tcpAddress.sin_addr.S_un.S_addr = INADDR_ANY; 
 
 	bind(tcpSock,(SOCKADDR*)&tcpAddress,sizeof(tcpAddress));
 
