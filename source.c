@@ -60,8 +60,7 @@ typedef struct{
 }PLAYER;
 
 typedef struct{
-	VEC3 pos1;
-	VEC3 pos2;
+	u8 data[20];
 }PLAYERQUEUEDATA;
 
 typedef struct{
@@ -105,6 +104,10 @@ PLAYERQUEUEDATA playerQueueData[16][MAXPLAYERS];
 
 i32 sockret[MAXPLAYERS];
 
+u8 playerNames[MAXPLAYERS][24];
+
+u8 latestPlayer;
+
 void serverRecvTimer(u8 id){
 	Sleep(15);
 	while(sockret[id]!=0){
@@ -129,8 +132,12 @@ void serverSend(u8 *clientID){
 			packetID = playerQueue[playerQueueC[id]][id];
 			send(client[id],&packetID,1,0);
 			switch(packetID){
+			case 1:
+				send(client[id],&latestPlayer,1,0);
+				send(client[id],&playerQueueData[playerQueueC[id]][id],20,0);
+				break;
 			case 3:
-				send(client[id],&playerQueueData[playerQueueC[id]][id],sizeof(PLAYERQUEUEDATA),0);
+				send(client[id],&playerQueueData[playerQueueC[id]][id],sizeof(VEC3)*2,0);
 				break;
 			}
 		}
@@ -175,8 +182,8 @@ void serverRecv(u8 id){
 			for(u32 i = 0;i < MAXPLAYERS;i++){
 				if(client[i] && i != id){
 					playerQueue[playerQueueC[i]][i] = 3;
-					playerQueueData[playerQueueC[i]][i].pos1 = rayEntity.pos1;
-					playerQueueData[playerQueueC[i]][i].pos2 = rayEntity.pos2;
+					memcpy(&playerQueueData[playerQueueC[i]][i],&rayEntity.pos1.x,sizeof(VEC3));
+					memcpy(&playerQueueData[playerQueueC[i]][i]+sizeof(VEC3),&rayEntity.pos2.x,sizeof(VEC3));
 					playerQueueC[i]++;
 				}
 			}
@@ -196,6 +203,7 @@ void serverRecv(u8 id){
 
 void mapSend(u8 *clientID){
 	u8 id = *clientID;
+	latestPlayer = id;
 	send(client[id],&properties->lvlSz,1,0);
 	send(client[id],&properties->lmapSz,4,0);
 	send(client[id],&clientC,1,0,0);
@@ -210,6 +218,24 @@ void mapSend(u8 *clientID){
 	send(client[id],metadt6,properties->lvlSz*properties->lvlSz*properties->lvlSz*4,0);
 	send(client[id],lpmap,properties->lvlSz*properties->lvlSz*properties->lvlSz*sizeof(LPMAP),0);
 	send(client[id],lmap,lmapC*properties->lmapSz*properties->lmapSz*sizeof(EXRGB),0,0);
+
+	for(u8 i = 0;i < MAXPLAYERS;i++){
+		if(client[i] && i != id){
+			send(client[id],&i,1,0);
+			send(client[id],playerNames[i],20,0);
+		}
+	}
+
+	recv(client[id],playerNames[id],20,0);
+
+	for(u32 i = 0;i < MAXPLAYERS;i++){
+		if(client[i] && i != id){
+			playerQueue[playerQueueC[i]][i] = 1;
+			memcpy(&playerQueueData[playerQueueC[i]][i],playerNames[id],20);
+			playerQueueC[i]++;
+		}
+	}
+
 	printf("clientLoaded\n");
 	CreateThread(0,0,serverSend,&id,0,0);
 	serverRecv(id);
@@ -263,12 +289,6 @@ void main(){
 		listen(tcpSock,SOMAXCONN);
 		SOCKET temp = accept(tcpSock,0,0);
 		u8 id = searchServerSlot();
-		for(u32 i = 0;i < MAXPLAYERS;i++){
-			if(client[i]){
-				playerQueue[playerQueueC[i]][i] = 1;
-				playerQueueC[i]++;
-			}
-		}
 		client[id] = temp;
 
 		setsockopt(client[id],IPPROTO_TCP,TCP_NODELAY,1,sizeof(DWORD));
